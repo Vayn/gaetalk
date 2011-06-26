@@ -183,14 +183,19 @@ def handle_message(msg):
     return
 
   if len(msg.body) > 500 or msg.body.count('\n') > 5:
-    msgbody = utils.post_code(msg.body)
+    msgbody = config.post_code(msg.body)
     if msgbody:
-      msg.reply(u'内容过长，已贴至 %s' % msgbody)
+      msgbody += '/text' # 默认当作纯文本高亮
+      msg.reply(u'内容过长，已贴至 %s 。' % msgbody)
+      firstline = msg.body.split('\n')[0]
+      if len(firstline) > 40:
+        firstline = firstline[:40]
+      msgbody += '\n' + firstline + '...'
     else:
       logging.warn(u'贴代码失败，代码长度 %d' % len(msg.body))
       msg.reply('由于技术限制，每条消息最长为 500 字。大段文本请贴 paste 网站。\n'
                 '如 http://paste.ubuntu.org.cn/ http://slexy.org/\n'
-                'PS: 自动转贴失败！')
+               )
       return
     ch = None
   else:
@@ -212,29 +217,6 @@ def handle_message(msg):
       msg.reply('你已被禁言至 ' \
                 + (sender.black_before+timezone).strftime(format))
       return
-
-    if sender.last_speak_date is not None:
-      d = now - sender.last_speak_date
-      t = d.seconds
-      if d.days > 0 or t > 60:
-        sender.flooding_point = 0
-      else:
-        k = 1000 / (t * t + 1)
-        if k > 0:
-          sender.flooding_point += k
-        else:
-          sender.flooding_point = 0
-
-        k = sender.flooding_point / 1500
-        if k > 0:
-          msg.reply('刷屏啊？禁言 %d 分钟！' % k)
-          send_to_all_except(sender.jid,
-            (u'%s 已因刷屏而被禁言 %d 分钟。' % (sender.nick, k)) \
-                                  .encode('utf-8'))
-          log_onoff(sender, BLACK_AUTO % (60 * k))
-          sender.black_before = now + datetime.timedelta(seconds=60*k)
-          sender.put()
-          return
 
     sender.last_speak_date = now
     sender.snooze_before = None
@@ -554,10 +536,7 @@ class BasicCommand:
 
     msg = self.get_msg_part(2)
     msg = u'_私信_ %s %s' % (target.nick_pattern % self.sender.nick, msg)
-    if xmpp.send_message(target.jid, msg) == xmpp.NO_ERROR:
-      self.msg.reply(u'OK')
-    else:
-      self.msg.reply(u'消息发送失败')
+    xmpp.send_message(target.jid, msg)
 
   def do_intro(self, arg):
     '''设置自我介绍信息'''
@@ -683,8 +662,8 @@ class BasicCommand:
       self.msg.reply(u'\n'.join(doc).encode('utf-8'))
     else:
       msg = self.msg
-      cmd = msg.body.split(None, 1)[1].split('=', 1)
-      if len(cmd) == 1:
+      cmd = args[0].split('=', 1)
+      if len(cmd) == 1 or cmd[1] == '':
         msg.reply(u'错误：请给出选项值')
         return
       try:
