@@ -25,6 +25,7 @@ appid = 'lilydjwg'
 # 离开时某些客户端自动发送的消息（全文）
 blocked_away_messages = (
   "I'm currently away and will reply as soon as I return to eBuddy on my iPod touch",
+  'This is an autoreply: I am currently not available. Please leave your message, and I will get back to you as soon as possible.',
 )
 
 def post_code(msg):
@@ -37,6 +38,6 @@ def post_code(msg):
         payload=form_data,
         method=urlfetch.POST,
         headers={'Content-Type': 'application/x-www-form-urlencoded'})
-    return result.content.strip()
+    return result.content.strip() + '/text' # 默认当作纯文本高亮
   except urlfetch.DownloadError:
     return

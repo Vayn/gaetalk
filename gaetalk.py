@@ -62,7 +62,6 @@ class User(db.Model):
 
   black_before = db.DateTimeProperty(auto_now_add=True)
   snooze_before = db.DateTimeProperty()
-  flooding_point = db.IntegerProperty(default=0)
 
   avail = db.StringProperty(required=True)
   is_admin = db.BooleanProperty(required=True, default=False)
@@ -185,9 +184,14 @@ def handle_message(msg):
   if len(msg.body) > 500 or msg.body.count('\n') > 5:
     msgbody = config.post_code(msg.body)
     if msgbody:
-      msgbody += '/text' # 默认当作纯文本高亮
       msg.reply(u'内容过长，已贴至 %s 。' % msgbody)
-      firstline = msg.body.split('\n')[0]
+      firstline = ''
+      lineiter = iter(msg.body.split('\n'))
+      try:
+        while not firstline:
+          firstline = lineiter.next()
+      except StopIteration:
+        pass
       if len(firstline) > 40:
         firstline = firstline[:40]
       msgbody += '\n' + firstline + '...'
@@ -216,6 +220,24 @@ def handle_message(msg):
         format = '%m月%d日 %H时%M分%S秒'
       msg.reply('你已被禁言至 ' \
                 + (sender.black_before+timezone).strftime(format))
+      return
+
+    # handles ping, which does the following:
+    # - tells the user the network and the bot are OK
+    # - undoes snoozing
+    # - tells a previously 'quieted' person if s/he can speak now
+    if msgbody == 'ping':
+      if sender.snooze_before:
+        sender.snooze_before = None
+        sender.put()
+      msg.reply('pong')
+      return
+
+    if msgbody.lower() in ('test', u'测试'):
+      if sender.snooze_before:
+        sender.snooze_before = None
+        sender.put()
+      msg.reply('test ok')
       return
 
     sender.last_speak_date = now
